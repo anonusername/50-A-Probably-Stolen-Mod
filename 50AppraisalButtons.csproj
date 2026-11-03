@@ -1,0 +1,128 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <!-- Players see the DLL and folder name; C# identifiers can't start with a digit, so the namespace stays FiftyAppraisal. -->
+    <AssemblyName>50AppraisalButtons</AssemblyName>
+    <RootNamespace>FiftyAppraisal</RootNamespace>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <!-- The game folder comes from the GAME_DIR= line of the gitignored SENSITIVE.md.
+       Override with: dotnet build -c Release -p:GameDir="<game folder>" -->
+  <PropertyGroup Condition="'$(GameDir)' == '' And Exists('$(MSBuildProjectDirectory)\SENSITIVE.md')">
+    <GameDir>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\SENSITIVE.md')), '(?m)(?&lt;=^GAME_DIR=)[^\r\n]*').Value.Trim())</GameDir>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <ManagedDir>$(GameDir)\Probably Stolen_Data\Managed</ManagedDir>
+    <ModInstallDir>$(GameDir)\Mods\50AppraisalButtons</ModInstallDir>
+    <!-- Release packages (gitignored). packages\steam\preview.jpg (or .png) is the user's preview image: the Workshop
+         preview (must be under 1 MB) and, shipped as preview.png, the Mods menu banner. The game only looks for
+         preview.png, and Unity's LoadImage decodes JPEG data under that name too. -->
+    <PackagesDir>$(MSBuildProjectDirectory)\packages</PackagesDir>
+    <!-- tools\ holds separate release helpers; their sources must not compile into the mod DLL. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);tools\**;packages\**</DefaultItemExcludes>
+    <PreviewImage>$(PackagesDir)\steam\preview.png</PreviewImage>
+    <PreviewImage Condition="Exists('$(PackagesDir)\steam\preview.jpg')">$(PackagesDir)\steam\preview.jpg</PreviewImage>
+    <SteamContentDir>$(PackagesDir)\steam\50AppraisalButtons</SteamContentDir>
+    <NexusStageDir>$(PackagesDir)\nexus\stage</NexusStageDir>
+  </PropertyGroup>
+
+  <!-- Every reference stays Private=false: a second DLL in the mod folder stops the mod from loading. -->
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(ManagedDir)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(ManagedDir)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ManagedDir)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(ManagedDir)\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(ManagedDir)\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(ManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(ManagedDir)\Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(ManagedDir)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="CheckGameDir" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(ManagedDir)\Assembly-CSharp.dll')"
+           Text="Game DLLs not found in '$(ManagedDir)'. Add a line 'GAME_DIR=&lt;folder containing Probably Stolen.exe&gt;' to SENSITIVE.md, or pass -p:GameDir=..." />
+  </Target>
+
+  <!-- After every build, install the mod into <game>\Mods\50AppraisalButtons\ so the game picks it up.
+       Skip with -p:InstallMod=false (e.g. while testing the Workshop copy, which a local folder would override). -->
+  <Target Name="InstallMod" AfterTargets="Build" Condition="'$(InstallMod)' != 'false'">
+    <MakeDir Directories="$(ModInstallDir)" />
+    <Copy SourceFiles="$(TargetPath);manifest.xml" DestinationFolder="$(ModInstallDir)" />
+    <Copy SourceFiles="$(PreviewImage)" DestinationFiles="$(ModInstallDir)\preview.png" Condition="Exists('$(PreviewImage)')" />
+    <Message Importance="high" Text="Installed into $(ModInstallDir)" />
+  </Target>
+
+  <!-- dotnet build -c Release -t:Package
+       packages\steam\50AppraisalButtons\   Workshop content folder (only what ships)
+       packages\steam\workshop.vdf          steamcmd item file, written once so steamcmd's published id is kept
+       packages\nexus\50AppraisalButtons-<ModVersion>.zip   contains 50AppraisalButtons\ at its root -->
+  <Target Name="Package" DependsOnTargets="Build">
+    <XmlPeek XmlInputPath="manifest.xml" Query="/Manifest/ModVersion/text()">
+      <Output TaskParameter="Result" PropertyName="ModVersion" />
+    </XmlPeek>
+    <!-- Escaped so the [*] and other characters in the BBCode survive as one item spec. -->
+    <PropertyGroup>
+      <SteamDescriptionFile>$(PackagesDir)\steam\descriptions\english.bbcode</SteamDescriptionFile>
+      <SteamDescription Condition="Exists('$(SteamDescriptionFile)')">$([MSBuild]::Escape($([System.IO.File]::ReadAllText('$(SteamDescriptionFile)').Trim())))</SteamDescription>
+    </PropertyGroup>
+    <ItemGroup>
+      <ShipFile Include="$(TargetPath);manifest.xml" />
+    </ItemGroup>
+
+    <RemoveDir Directories="$(SteamContentDir);$(NexusStageDir)" />
+    <Copy SourceFiles="@(ShipFile)" DestinationFolder="$(SteamContentDir)" />
+    <Copy SourceFiles="@(ShipFile)" DestinationFolder="$(NexusStageDir)\50AppraisalButtons" />
+    <Copy SourceFiles="$(PreviewImage)" DestinationFiles="$(SteamContentDir)\preview.png" Condition="Exists('$(PreviewImage)')" />
+    <Copy SourceFiles="$(PreviewImage)" DestinationFiles="$(NexusStageDir)\50AppraisalButtons\preview.png" Condition="Exists('$(PreviewImage)')" />
+    <!-- ZipDirectory zips the contents of SourceDirectory, so zipping the stage puts the mod folder at the zip root. -->
+    <ZipDirectory SourceDirectory="$(NexusStageDir)" DestinationFile="$(PackagesDir)\nexus\50AppraisalButtons-$(ModVersion).zip" Overwrite="true" />
+
+    <ItemGroup>
+      <VdfLine Include="&quot;workshopitem&quot;" />
+      <VdfLine Include="{" />
+      <VdfLine Include="    &quot;appid&quot;            &quot;4348910&quot;" />
+      <VdfLine Include="    &quot;publishedfileid&quot;  &quot;0&quot;" />
+      <VdfLine Include="    &quot;contentfolder&quot;    &quot;$(SteamContentDir.Replace('\', '\\'))&quot;" />
+      <VdfLine Include="    &quot;previewfile&quot;      &quot;$(PreviewImage.Replace('\', '\\'))&quot;" />
+      <VdfLine Include="    &quot;visibility&quot;       &quot;2&quot;" />
+      <VdfLine Include="    &quot;title&quot;            &quot;50 Appraisal Buttons (+50/-50)&quot;" />
+      <!-- The English Workshop description. steamcmd's VDF parser has no escapes, so the file must not contain a
+           straight double quote; the value may span lines. -->
+      <VdfLine Include="    &quot;description&quot;      &quot;$(SteamDescription)&quot;" />
+      <VdfLine Include="    &quot;changenote&quot;       &quot;First release&quot;" />
+      <VdfLine Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(PackagesDir)\steam\workshop.vdf" Lines="@(VdfLine)" Condition="!Exists('$(PackagesDir)\steam\workshop.vdf')" />
+
+    <Message Importance="high" Text="Packaged $(ModVersion): $(SteamContentDir) and $(PackagesDir)\nexus\50AppraisalButtons-$(ModVersion).zip" />
+  </Target>
+
+</Project>

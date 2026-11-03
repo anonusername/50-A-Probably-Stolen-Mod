@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Manifest>
+  <ID>50_appraisal_buttons</ID>
+  <Name>50 Appraisal Buttons (+50/-50)</Name>
+  <Author>EVIL Gibson</Author>
+  <ModVersion>1.1</ModVersion>
+  <Description>Adds +50 and -50 buttons to the appraisal panel. The plus buttons sit in a row above the estimate field, the minus buttons in a row below it, and the field is bigger and easier to read.</Description>
+  <GameVersions>
+    <Version>0.46</Version>
+  </GameVersions>
+  <Prerequisites />
+  <Assemblies>
+    <Assembly>50AppraisalButtons.dll</Assembly>
+  </Assemblies>
+  <Capabilities />
+</Manifest>

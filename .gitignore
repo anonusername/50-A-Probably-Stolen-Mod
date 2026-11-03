@@ -1,0 +1,17 @@
+# Machine-specific data (game path, Steam libraries, log/save locations). Never commit.
+SENSITIVE.md
+
+# Build output
+bin/
+obj/
+
+# Release packages (Steam Workshop content folder + workshop.vdf, Nexus zip, preview images)
+packages/
+
+# Third-party binaries for tools/WorkshopLocalize (Steamworks.NET + Valve's steam_api64.dll); see its .csproj
+tools/WorkshopLocalize/lib/
+
+# IDE
+.vs/
+.idea/
+*.user
